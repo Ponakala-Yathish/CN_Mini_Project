@@ -147,24 +147,51 @@ def run_job(payload: str) -> str:
                      calc:10,+,5
                      factorial:7
                      password:16
-    If no ':' is given, treats entire payload as the job name with no argument.
+    If no colon is given, the whole payload is treated as the job name.
     """
+    # ── Edge case: completely empty payload ────────────────────────────────
+    if not payload or not payload.strip():
+        return "ERROR: empty payload received — nothing to execute"
+
+    # ── Edge case: payload is just whitespace or symbols ──────────────────
+    if payload.strip() in (":", "::", ":::", "---"):
+        return "ERROR: invalid payload format"
+
     if ":" in payload:
         job_name, arg = payload.split(":", 1)
     else:
-        job_name, arg = payload.strip(), ""
+        # ── Edge case: no colon — user forgot the format ──────────────────
+        job_name = payload.strip()
+        arg      = ""
 
     job_name = job_name.strip().lower()
-    func = JOB_REGISTRY.get(job_name)
 
-    if func is None:
+    # ── Edge case: empty job name (payload was just ":something") ─────────
+    if not job_name:
         available = ", ".join(JOB_REGISTRY.keys())
-        return (f"ERROR: unknown job '{job_name}'. "
+        return (f"ERROR: job name is missing. "
+                f"Format is  jobname:argument  e.g.  reverse:hello\n"
                 f"Available jobs: {available}")
 
-    # Small simulated delay so you can see ASSIGNED state in client
+    func = JOB_REGISTRY.get(job_name)
+
+    # ── Edge case: unknown job name ────────────────────────────────────────
+    if func is None:
+        available = ", ".join(JOB_REGISTRY.keys())
+        # Check if it looks like a typo (close match)
+        close = [k for k in JOB_REGISTRY if k.startswith(job_name[:3])]
+        hint  = f"  Did you mean: {close[0]}?" if close else ""
+        return (f"ERROR: unknown job '{job_name}'.{hint}\n"
+                f"Available jobs: {available}")
+
+    # Small delay so client can see ASSIGNED state before COMPLETED
     time.sleep(0.5)
-    return func(arg)
+
+    # ── Edge case: wrap execution so crashes don't kill the worker ─────────
+    try:
+        return func(arg)
+    except Exception as e:
+        return f"ERROR: job '{job_name}' crashed unexpectedly: {e}"
 
 
 # ─────────────────────────────────────────────────────────────────

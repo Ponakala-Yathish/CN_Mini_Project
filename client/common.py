@@ -5,17 +5,26 @@ Used by server.py, client.py, and worker.py
 
 import json
 import socket
+import ssl
 import struct
 import logging
 import time
-from enum import Enum
+import os
 
 # ─────────────────────────────────────────────
 #  Network Config
+#  !! CHANGE SERVER_HOST to Person 1's IP when running on 3 PCs !!
 # ─────────────────────────────────────────────
 SERVER_HOST = "127.0.0.1"
 SERVER_PORT = 9000
-BUFFER_SIZE  = 4096
+
+# ─────────────────────────────────────────────
+#  SSL Certificate file paths
+#  All 3 files must be in the SAME folder as the scripts
+# ─────────────────────────────────────────────
+BASE_DIR     = os.path.dirname(os.path.abspath(__file__))
+CERT_FILE    = os.path.join(BASE_DIR, "server.crt")   # public cert  (needed by all 3)
+KEY_FILE     = os.path.join(BASE_DIR, "server.key")   # private key  (server only)
 
 # ─────────────────────────────────────────────
 #  Timeouts & Thresholds
@@ -63,10 +72,36 @@ class JobState:
 
 
 # ─────────────────────────────────────────────
-#  Framed send / receive  (length-prefix)
-#  Prevents partial reads / sticky packets
+#  SSL Context builders
 # ─────────────────────────────────────────────
-def send_msg(sock: socket.socket, payload: dict) -> bool:
+def make_server_ssl_context() -> ssl.SSLContext:
+    """
+    Server-side SSL context.
+    Loads the certificate + private key.
+    Called only by server.py
+    """
+    ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+    ctx.load_cert_chain(certfile=CERT_FILE, keyfile=KEY_FILE)
+    return ctx
+
+
+def make_client_ssl_context() -> ssl.SSLContext:
+    """
+    Client/Worker-side SSL context.
+    Loads the server's public certificate to verify the server.
+    Called by client.py and worker.py
+    """
+    ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+    ctx.load_verify_locations(cafile=CERT_FILE)   # trust our self-signed cert
+    ctx.check_hostname = False                     # no hostname in self-signed cert
+    return ctx
+
+
+# ─────────────────────────────────────────────
+#  Framed send / receive  (length-prefix)
+#  Works on both plain sockets AND ssl.SSLSocket
+# ─────────────────────────────────────────────
+def send_msg(sock, payload: dict) -> bool:
     """
     Serialize dict → JSON, prefix with 4-byte big-endian length, send.
     Returns True on success, False on failure.
@@ -76,12 +111,12 @@ def send_msg(sock: socket.socket, payload: dict) -> bool:
         frame = struct.pack(">I", len(data)) + data
         sock.sendall(frame)
         return True
-    except (OSError, BrokenPipeError) as e:
+    except (OSError, BrokenPipeError, ssl.SSLError) as e:
         logging.debug(f"send_msg failed: {e}")
         return False
 
 
-def recv_msg(sock: socket.socket):
+def recv_msg(sock):
     """
     Read exactly 4 bytes for length, then read that many bytes.
     Returns parsed dict or None on connection close / error.
@@ -95,18 +130,18 @@ def recv_msg(sock: socket.socket):
         if raw_data is None:
             return None
         return json.loads(raw_data.decode("utf-8"))
-    except (json.JSONDecodeError, OSError) as e:
+    except (json.JSONDecodeError, OSError, ssl.SSLError) as e:
         logging.debug(f"recv_msg failed: {e}")
         return None
 
 
-def _recv_exact(sock: socket.socket, n: int):
+def _recv_exact(sock, n: int):
     """Read exactly n bytes from socket. Returns None if connection closed."""
     buf = b""
     while len(buf) < n:
         try:
             chunk = sock.recv(n - len(buf))
-        except OSError:
+        except (OSError, ssl.SSLError):
             return None
         if not chunk:
             return None
