@@ -15,7 +15,7 @@ import os
 #  Network Config
 #  !! CHANGE SERVER_HOST to Person 1's IP when running on 3 PCs !!
 # ─────────────────────────────────────────────
-SERVER_HOST = "127.0.0.1"
+SERVER_HOST = "10.197.83.227"
 SERVER_PORT = 9000
 
 # ─────────────────────────────────────────────

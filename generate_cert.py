@@ -32,3 +32,5 @@ with open("server.crt", "wb") as f:
     f.write(cert.public_bytes(serialization.Encoding.PEM))
 
 print("Done! server.crt and server.key created.")
+
+
