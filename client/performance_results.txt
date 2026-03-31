@@ -1,0 +1,26 @@
+DISTRIBUTED JOB QUEUE — PERFORMANCE RESULTS
+==================================================
+Date     : 2026-03-31 21:22:21
+Server   : 10.197.83.227:9000
+==================================================
+
+Test: throughput
+  n: 10
+  success: 10
+  elapsed: 0.23
+  throughput: 43.48
+
+Test: latency
+  latencies: [5.079, 3.077, 2.043, 3.069, 2.033]
+
+Test: multi_client
+  clients: 3
+  success: 9
+  elapsed: 0.099
+  throughput: 90.91
+
+Test: worker_scaling
+  n: 6
+  completed: 6
+  total_time: 10.187
+

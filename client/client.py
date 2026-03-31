@@ -266,7 +266,14 @@ def batch_mode(n: int):
 if __name__ == "__main__":
     args = sys.argv[1:]
     if not args:
-        interactive_mode()
+        # Launch the web UI instead of the interactive terminal UI
+        try:
+            import client_ui
+            client_ui.run_ui(blocking=True)
+        except Exception as e:
+            print(f"Failed to start UI: {e}")
+            print("Falling back to terminal interactive mode.")
+            interactive_mode()
     elif args[0] == "batch":
         n = int(args[1]) if len(args) > 1 else 10
         batch_mode(n)
